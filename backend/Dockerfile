@@ -47,4 +47,4 @@ USER appuser
 
 # Render dynamically injects the PORT environment variable. 
 # We use the shell form of CMD to allow environment variable expansion.
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 4"
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"

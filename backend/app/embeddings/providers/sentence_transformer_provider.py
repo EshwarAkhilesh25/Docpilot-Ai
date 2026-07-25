@@ -1,10 +1,9 @@
 """SentenceTransformers embedding provider implementation."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 from app.core.config import get_settings
 from app.embeddings.exceptions import EmbeddingGenerationException
@@ -37,20 +36,20 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
                         If None, uses EMBEDDING_MODEL from config.
         """
         self._model_name = model_name or settings.EMBEDDING_MODEL
-        self._model: SentenceTransformer | None = None
+        self._model: Any = None
         self._dimension: int | None = None
 
-    def _load_model(self) -> SentenceTransformer:
+    def _load_model(self) -> Any:
         """Load the SentenceTransformers model lazily.
 
         Returns:
             The loaded SentenceTransformer model.
         """
         if self._model is None:
-            pass
+            from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(self._model_name)
             self._dimension = self._model.get_sentence_embedding_dimension()
-            pass
         return self._model
 
     async def generate_embedding(self, text: str) -> np.ndarray:

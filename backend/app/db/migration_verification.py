@@ -93,10 +93,11 @@ class MigrationVerifier:
         try:
             from sqlalchemy import create_engine, text
 
-            # Create a synchronous engine for migration check
+            # Create a synchronous engine for migration check with a 5-second timeout
             # Convert async URL to sync URL
             db_url = settings.DATABASE_URL.replace("+asyncpg", "")
-            engine = create_engine(db_url)
+            connect_args = {"connect_timeout": 5} if "postgresql" in db_url else {}
+            engine = create_engine(db_url, connect_args=connect_args)
 
             with engine.connect() as connection:
                 result = connection.execute(text("SELECT version_num FROM alembic_version"))
