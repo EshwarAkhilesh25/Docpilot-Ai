@@ -121,15 +121,14 @@ class Bootstrap:
         Raises:
             OSError: If directories cannot be created.
         """
-        pass
-
         storage_path = Path(settings.STORAGE_PATH)
         storage_path.mkdir(parents=True, exist_ok=True)
-        pass
 
         faiss_path = Path(settings.FAISS_INDEX_PATH)
         faiss_path.mkdir(parents=True, exist_ok=True)
-        pass
+
+        bm25_path = Path(settings.BM25_INDEX_PATH)
+        bm25_path.mkdir(parents=True, exist_ok=True)
 
     def verify_database_migrations(self) -> None:
         """Verify database migration status.

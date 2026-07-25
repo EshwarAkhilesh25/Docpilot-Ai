@@ -42,6 +42,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy the rest of the application code (for migrations, etc.)
 COPY --chown=appuser:appuser . .
 
+# Create required storage directories and ensure appuser owns /app and all subdirectories
+RUN mkdir -p storage/uploads storage/faiss_index storage/bm25_index && \
+    chown -R appuser:appuser /app
+
 # Switch to non-root user
 USER appuser
 
