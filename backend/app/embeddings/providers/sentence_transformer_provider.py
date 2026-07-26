@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import threading
 from typing import Any, cast
 
 import numpy as np
@@ -18,9 +19,10 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
     """Embedding provider using SentenceTransformers.
 
     This provider uses BAAI/bge-small-en-v1.5 model for generating embeddings.
-    The model is loaded eagerly during bootstrap and cached for reuse.
-    Supports batch generation for efficiency and offloads CPU-bound encoding
-    to thread workers via asyncio.to_thread.
+    The model is loaded lazily on demand and cached for reuse. Model loading
+    and CPU-bound encoding are offloaded to worker threads via asyncio.to_thread,
+    ensuring that FastAPI's main asyncio event loop remains fully responsive
+    to health checks and HTTP traffic during initial load.
     """
 
     def __init__(self, model_name: str | None = None):
@@ -33,32 +35,52 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
         self._model_name = model_name or settings.EMBEDDING_MODEL
         self._model: Any = None
         self._dimension: int | None = None
+        self._lock = threading.Lock()
+        self._async_lock = asyncio.Lock()
+
+    def _load_model_sync(self) -> Any:
+        """Synchronously load the SentenceTransformers model with thread-safe locking."""
+        if self._model is None:
+            with self._lock:
+                if self._model is None:
+                    from sentence_transformers import SentenceTransformer
+
+                    logger.info(
+                        f"Loading SentenceTransformer embedding model: {self._model_name}..."
+                    )
+                    model = SentenceTransformer(self._model_name)
+                    if hasattr(model, "get_embedding_dimension"):
+                        dimension = model.get_embedding_dimension()
+                    else:
+                        dimension = model.get_sentence_embedding_dimension()
+
+                    self._dimension = dimension
+                    self._model = model
+                    logger.info(
+                        f"SentenceTransformer model {self._model_name} loaded successfully (dim={self._dimension})"
+                    )
+        return self._model
+
+    async def _get_model(self) -> Any:
+        """Asynchronously get or load the model without blocking the asyncio event loop."""
+        if self._model is not None:
+            return self._model
+
+        async with self._async_lock:
+            if self._model is None:
+                await asyncio.to_thread(self._load_model_sync)
+
+        return self._model
 
     def _load_model(self) -> Any:
-        """Load the SentenceTransformers model.
-
-        Returns:
-            The loaded SentenceTransformer model.
-        """
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
-
-            logger.info(f"Loading SentenceTransformer embedding model: {self._model_name}...")
-            self._model = SentenceTransformer(self._model_name)
-            if hasattr(self._model, "get_embedding_dimension"):
-                self._dimension = self._model.get_embedding_dimension()
-            else:
-                self._dimension = self._model.get_sentence_embedding_dimension()
-            logger.info(
-                f"SentenceTransformer model {self._model_name} loaded successfully (dim={self._dimension})"
-            )
-        return self._model
+        """Synchronous load_model interface for backward compatibility."""
+        return self._load_model_sync()
 
     async def generate_embedding(self, text: str) -> np.ndarray:
         """Generate an embedding for a single text.
 
-        Offloads CPU-bound model.encode to a thread pool via asyncio.to_thread
-        to prevent blocking the main asyncio event loop.
+        Offloads model loading and CPU-bound model.encode to worker threads via
+        asyncio.to_thread to prevent blocking the main asyncio event loop.
 
         Args:
             text: The text to embed.
@@ -73,7 +95,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
             raise EmbeddingGenerationException("Cannot generate embedding for empty text")
 
         try:
-            model = self._load_model()
+            model = await self._get_model()
             embedding = await asyncio.to_thread(model.encode, text, normalize_embeddings=True)
             return cast(np.ndarray, embedding)
         except Exception as e:
@@ -83,8 +105,8 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
     async def generate_embeddings(self, texts: list[str]) -> list[np.ndarray]:
         """Generate embeddings for multiple texts in batch.
 
-        Offloads CPU-bound model.encode to a thread pool via asyncio.to_thread
-        to prevent blocking the main asyncio event loop.
+        Offloads model loading and CPU-bound model.encode to worker threads via
+        asyncio.to_thread to prevent blocking the main asyncio event loop.
 
         Args:
             texts: List of texts to embed.
@@ -104,7 +126,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
             return []
 
         try:
-            model = self._load_model()
+            model = await self._get_model()
             embeddings = await asyncio.to_thread(
                 model.encode, valid_texts, normalize_embeddings=True
             )
@@ -123,5 +145,5 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
             The dimension of the embedding vectors.
         """
         if self._dimension is None:
-            self._load_model()
+            self._load_model_sync()
         return cast(int, self._dimension)
