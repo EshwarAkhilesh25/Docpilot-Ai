@@ -410,6 +410,7 @@ async def initialize_application() -> Bootstrap:
     embedding_provider = bootstrap.get_embedding_provider()
     if embedding_provider is not None:
         import asyncio
+
         await asyncio.to_thread(embedding_provider._load_model)
 
     bootstrap.log_startup_info()
