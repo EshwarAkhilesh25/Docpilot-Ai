@@ -20,6 +20,8 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute("ALTER TYPE filetype ADD VALUE IF NOT EXISTS 'docx';")
     op.execute("ALTER TYPE filetype ADD VALUE IF NOT EXISTS 'txt';")
+    op.execute("ALTER TYPE chatrole ADD VALUE IF NOT EXISTS 'user';")
+    op.execute("ALTER TYPE chatrole ADD VALUE IF NOT EXISTS 'assistant';")
     op.execute("ALTER TABLE document_contents ADD COLUMN IF NOT EXISTS content_metadata JSON;")
     op.execute("""
     DO $$
