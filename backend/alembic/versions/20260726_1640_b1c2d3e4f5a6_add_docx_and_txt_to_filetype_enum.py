@@ -21,6 +21,26 @@ def upgrade() -> None:
     op.execute("ALTER TYPE filetype ADD VALUE IF NOT EXISTS 'docx';")
     op.execute("ALTER TYPE filetype ADD VALUE IF NOT EXISTS 'txt';")
     op.execute("ALTER TABLE document_contents ADD COLUMN IF NOT EXISTS content_metadata JSON;")
+    op.execute("""
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processingstage') THEN
+            CREATE TYPE processingstage AS ENUM (
+                'uploaded', 'extracting', 'chunking', 'embedding', 'indexing', 'completed', 'failed'
+            );
+        END IF;
+    END $$;
+    """)
+    op.execute("""
+    DO $$
+    BEGIN
+        ALTER TABLE processing_jobs ALTER COLUMN current_stage DROP DEFAULT;
+        ALTER TABLE processing_jobs ALTER COLUMN current_stage TYPE processingstage USING current_stage::processingstage;
+        ALTER TABLE processing_jobs ALTER COLUMN current_stage SET DEFAULT 'uploaded'::processingstage;
+    EXCEPTION
+        WHEN OTHERS THEN NULL;
+    END $$;
+    """)
 
 
 def downgrade() -> None:
