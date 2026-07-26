@@ -44,7 +44,7 @@ def upgrade() -> None:
     """)
 
     op.execute("""
-    DO $$ 
+    DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'chatrole') THEN
             CREATE TYPE chatrole AS ENUM ('USER', 'ASSISTANT');
