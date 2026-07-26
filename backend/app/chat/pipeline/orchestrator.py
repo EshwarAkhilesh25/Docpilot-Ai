@@ -100,7 +100,7 @@ class ChatPipelineService:
                         recent = messages[-5:]
                         for m in recent:
                             role_val = m.role.value if hasattr(m.role, "value") else m.role
-                            history.append({"role": str(role_val), "content": m.content})
+                            history.append({"role": str(role_val).lower(), "content": m.content})
 
             # 5. Retrieval Strategy & Retriever
             retrieval_strategy = workflow.get_retrieval_strategy()
