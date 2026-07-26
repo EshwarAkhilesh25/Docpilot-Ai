@@ -389,7 +389,7 @@ async def initialize_application() -> Bootstrap:
     This is the main entry point for application startup.
     It performs configuration validation, directory verification,
     database migration verification, provider factory registration,
-    and logs startup information.
+    eagerly loads the embedding model, and logs startup information.
 
     Returns:
         The initialized Bootstrap instance.
@@ -405,9 +405,15 @@ async def initialize_application() -> Bootstrap:
     bootstrap.verify_storage_directories()
     bootstrap.verify_database_migrations()
     bootstrap.register_provider_factories()
+
+    # Eagerly initialize and warm up embedding model during startup (outside HTTP request path)
+    embedding_provider = bootstrap.get_embedding_provider()
+    if embedding_provider is not None:
+        import asyncio
+        await asyncio.to_thread(embedding_provider._load_model)
+
     bootstrap.log_startup_info()
 
-    pass
     return bootstrap
 
 
