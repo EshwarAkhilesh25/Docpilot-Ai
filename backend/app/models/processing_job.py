@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import BaseModel
@@ -17,12 +17,7 @@ from app.models.enums import ProcessingStage, ProcessingStatus
 
 
 class ProcessingJob(BaseModel):
-    """ProcessingJob model representing document processing jobs.
-
-    A document may have multiple processing jobs to preserve processing history.
-    This allows for retries, re-processing after failures, and tracking of
-    different AI pipeline versions over time.
-    """
+    """ProcessingJob model representing document processing jobs."""
 
     __tablename__ = "processing_jobs"
 
@@ -30,10 +25,16 @@ class ProcessingJob(BaseModel):
         ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
     )
     status: Mapped[ProcessingStatus] = mapped_column(
-        default=ProcessingStatus.UPLOADED, nullable=False, index=True
+        Enum(ProcessingStatus, values_callable=lambda obj: [e.value for e in obj]),
+        default=ProcessingStatus.UPLOADED,
+        nullable=False,
+        index=True,
     )
     current_stage: Mapped[ProcessingStage] = mapped_column(
-        default=ProcessingStage.UPLOADED, nullable=False, index=True
+        Enum(ProcessingStage, values_callable=lambda obj: [e.value for e in obj]),
+        default=ProcessingStage.UPLOADED,
+        nullable=False,
+        index=True,
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(String(1000), nullable=True)

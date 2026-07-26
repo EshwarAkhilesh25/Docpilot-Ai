@@ -8,6 +8,7 @@ class FileType(StrEnum):
     DOCX = "docx"
     AUDIO = "audio"
     VIDEO = "video"
+    TXT = "txt"
 
 
 class ProcessingStatus(StrEnum):

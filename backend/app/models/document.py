@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import BaseModel
@@ -21,16 +21,7 @@ from app.models.file_metadata import FileMetadataMixin
 
 
 class Document(BaseModel, FileMetadataMixin):
-    """Document model representing uploaded files.
-
-    File metadata fields are inherited from FileMetadataMixin:
-    - original_filename
-    - stored_filename (mapped to 'filename' column for schema compatibility)
-    - mime_type
-    - file_size
-    - storage_path
-    - checksum
-    """
+    """Document model representing uploaded files."""
 
     __tablename__ = "documents"
 
@@ -39,9 +30,14 @@ class Document(BaseModel, FileMetadataMixin):
     )
     # Override stored_filename to use 'filename' column name for schema compatibility
     stored_filename: Mapped[str] = mapped_column("filename", String(255), nullable=False)
-    file_type: Mapped[FileType] = mapped_column(nullable=False)
+    file_type: Mapped[FileType] = mapped_column(
+        Enum(FileType, values_callable=lambda obj: [e.value for e in obj]), nullable=False
+    )
     processing_status: Mapped[ProcessingStatus] = mapped_column(
-        default=ProcessingStatus.UPLOADED, nullable=False, index=True
+        Enum(ProcessingStatus, values_callable=lambda obj: [e.value for e in obj]),
+        default=ProcessingStatus.UPLOADED,
+        nullable=False,
+        index=True,
     )
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(

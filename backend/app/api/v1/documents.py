@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 # File upload configuration
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".mp3", ".wav", ".mp4"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".mp3", ".wav", ".mp4", ".txt"}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB in bytes
 
 # Extension to FileType mapping
@@ -44,6 +44,7 @@ EXTENSION_TO_FILE_TYPE = {
     ".mp3": FileType.AUDIO,
     ".wav": FileType.AUDIO,
     ".mp4": FileType.VIDEO,
+    ".txt": FileType.TXT,
 }
 
 
