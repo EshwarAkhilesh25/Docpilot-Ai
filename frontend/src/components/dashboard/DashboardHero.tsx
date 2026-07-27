@@ -18,10 +18,8 @@ export function DashboardHero({ userName }: DashboardHeroProps) {
   const [isWarmingUp, setIsWarmingUp] = useState<boolean>(false);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-
     // Show warming status if backend check takes > 1.5s
-    timer = setTimeout(() => {
+    const timer = setTimeout(() => {
       setIsWarmingUp(true);
     }, 1500);
 
