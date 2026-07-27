@@ -24,7 +24,11 @@ class ApiClient {
   private setupInterceptors() {
     // Request interceptor
     this.client.interceptors.request.use(
-      (config: InternalAxiosRequestConfig & { _coldStartTimer?: ReturnType<typeof setTimeout> }) => {
+      (
+        config: InternalAxiosRequestConfig & {
+          _coldStartTimer?: ReturnType<typeof setTimeout>;
+        },
+      ) => {
         // Token is injected from authStore state
         const token = useAuthStore.getState().token;
 
@@ -58,7 +62,13 @@ class ApiClient {
 
     // Response interceptor
     this.client.interceptors.response.use(
-      (response: AxiosResponse & { config: InternalAxiosRequestConfig & { _coldStartTimer?: ReturnType<typeof setTimeout> } }) => {
+      (
+        response: AxiosResponse & {
+          config: InternalAxiosRequestConfig & {
+            _coldStartTimer?: ReturnType<typeof setTimeout>;
+          };
+        },
+      ) => {
         if (response.config._coldStartTimer) {
           clearTimeout(response.config._coldStartTimer);
         }
@@ -67,7 +77,13 @@ class ApiClient {
         });
         return response;
       },
-      (error: AxiosError & { config?: InternalAxiosRequestConfig & { _coldStartTimer?: ReturnType<typeof setTimeout> } }) => {
+      (
+        error: AxiosError & {
+          config?: InternalAxiosRequestConfig & {
+            _coldStartTimer?: ReturnType<typeof setTimeout>;
+          };
+        },
+      ) => {
         if (error.config?._coldStartTimer) {
           clearTimeout(error.config._coldStartTimer);
         }

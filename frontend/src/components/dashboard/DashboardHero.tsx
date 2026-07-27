@@ -111,7 +111,9 @@ export function DashboardHero({ userName }: DashboardHeroProps) {
                       ☁️ Waking up AI services...
                     </p>
                     <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
-                      The backend is starting on Render Free Tier. The first request may take 30–60 seconds. Thank you for your patience!
+                      The backend is starting on Render Free Tier. The first
+                      request may take 30–60 seconds. Thank you for your
+                      patience!
                     </p>
                   </div>
                 </div>
