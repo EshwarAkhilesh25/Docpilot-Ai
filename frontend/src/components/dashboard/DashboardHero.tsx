@@ -1,11 +1,13 @@
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cardVariants } from "@lib/animations";
 import { getGreeting } from "@lib/helpers/greeting";
-import { Upload, MessageSquare } from "lucide-react";
+import { Upload, MessageSquare, CloudLightning } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@lib/constants";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import chatbotLottie from "@/chatbot.lottie?url";
+import { apiClient } from "@lib/api";
 
 interface DashboardHeroProps {
   userName: string;
@@ -13,6 +15,29 @@ interface DashboardHeroProps {
 
 export function DashboardHero({ userName }: DashboardHeroProps) {
   const navigate = useNavigate();
+  const [isWarmingUp, setIsWarmingUp] = useState<boolean>(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    // Show warming status if backend check takes > 1.5s
+    timer = setTimeout(() => {
+      setIsWarmingUp(true);
+    }, 1500);
+
+    apiClient
+      .get("/health")
+      .then(() => {
+        clearTimeout(timer);
+        setIsWarmingUp(false);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        setIsWarmingUp(false);
+      });
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <motion.div
@@ -66,10 +91,35 @@ export function DashboardHero({ userName }: DashboardHeroProps) {
             </div>
           </div>
 
-          <p className="text-base sm:text-lg text-muted-foreground mb-8 leading-relaxed max-w-xl">
+          <p className="text-base sm:text-lg text-muted-foreground mb-6 leading-relaxed max-w-xl">
             Your intelligent document workspace is ready. Upload documents or
             start chatting to discover insights instantly.
           </p>
+
+          <AnimatePresence>
+            {isWarmingUp && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 overflow-hidden"
+              >
+                <div className="p-3.5 sm:p-4 rounded-xl bg-primary/10 border border-primary/20 backdrop-blur-sm flex items-start gap-3 text-xs sm:text-sm text-foreground max-w-xl">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0 mt-0.5">
+                    <CloudLightning className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-primary flex items-center gap-1.5 text-xs sm:text-sm">
+                      ☁️ Waking up AI services...
+                    </p>
+                    <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
+                      The backend is starting on Render Free Tier. The first request may take 30–60 seconds. Thank you for your patience!
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <button

@@ -10,7 +10,7 @@ interface PublicRouteProps {
 
 export const PublicRoute = ({
   children,
-  redirectTo = ROUTES.DASHBOARD,
+  redirectTo = ROUTES.HOME,
 }: PublicRouteProps) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 

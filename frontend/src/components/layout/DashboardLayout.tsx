@@ -22,7 +22,7 @@ interface DashboardLayoutProps {
 }
 
 const navItems = [
-  { path: ROUTES.DASHBOARD, label: "AI Workspace", icon: Home },
+  { path: ROUTES.HOME, label: "AI Workspace", icon: Home },
   { path: ROUTES.DOCUMENTS, label: "Knowledge Base", icon: FileText },
   { path: ROUTES.UPLOAD, label: "Import Documents", icon: UploadCloud },
   { path: ROUTES.CHAT, label: "AI Copilot", icon: MessageSquare },
@@ -119,7 +119,10 @@ export const DashboardLayout = ({
           >
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const isActive =
+                location.pathname === item.path ||
+                (item.path === ROUTES.HOME &&
+                  location.pathname === ROUTES.DASHBOARD);
               return (
                 <Link
                   key={item.path}

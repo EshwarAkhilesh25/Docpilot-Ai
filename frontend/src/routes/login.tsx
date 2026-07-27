@@ -51,8 +51,12 @@ export default function Login() {
       // Update user in store
       useAuthStore.getState().setUser(user);
 
+      // Ensure mobile sidebar is closed after login
+      const { useUIStore } = await import("@store/uiStore");
+      useUIStore.getState().setSidebarOpen(false);
+
       toast.success("Welcome back!");
-      navigate(ROUTES.DASHBOARD);
+      navigate(ROUTES.HOME);
     } catch (err: unknown) {
       const error = err as Error & {
         response?: { data?: { detail?: string }; status?: number };

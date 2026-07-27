@@ -81,16 +81,20 @@ const SettingsRoute = () => (
   </ProtectedRoute>
 );
 
+const HomeRoute = () => (
+  <ProtectedRoute>
+    <Suspense fallback={<PageLoading />}>
+      <Home />
+    </Suspense>
+  </ProtectedRoute>
+);
+
 // Placeholder routes - pages will be implemented later
 // All routes use lazy loading for optimal performance
 const router = createBrowserRouter([
   {
     path: ROUTES.HOME,
-    element: (
-      <Suspense fallback={<PageLoading />}>
-        <Home />
-      </Suspense>
-    ),
+    element: <HomeRoute />,
   },
   {
     path: ROUTES.LOGIN,
