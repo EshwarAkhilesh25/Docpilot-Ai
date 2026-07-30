@@ -14,6 +14,7 @@ backend_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_dir))
 
 import numpy as np
+
 from app.embeddings.providers.huggingface_inference_provider import (
     HuggingFaceInferenceProvider,
 )

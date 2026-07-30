@@ -42,7 +42,9 @@ class Settings(BaseSettings):
 
     # AI Services
     GROQ_API_KEY: str = Field(default="")
-    HUGGINGFACE_API_KEY: str = Field(default="", description="Hugging Face API Token for remote inference")
+    HUGGINGFACE_API_KEY: str = Field(
+        default="", description="Hugging Face API Token for remote inference"
+    )
 
     # LLM Configuration
     LLM_TIMEOUT: float = Field(default=60.0)

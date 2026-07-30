@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import random
-from typing import Any, cast
+from typing import Any
 
 import httpx
 import numpy as np
@@ -112,7 +112,7 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
         endpoints = [
             f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self._model_name}",
             f"https://api-inference.huggingface.co/models/{self._model_name}",
-            f"https://router.huggingface.co/hf-inference/v1/embeddings",
+            "https://router.huggingface.co/hf-inference/v1/embeddings",
         ]
 
         last_exception: Exception | None = None
@@ -241,4 +241,3 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
     def dimension(self) -> int:
         """Get vector dimension (384 for BAAI/bge-small-en-v1.5)."""
         return self._dimension
-
