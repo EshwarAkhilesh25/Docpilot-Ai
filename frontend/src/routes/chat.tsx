@@ -35,6 +35,7 @@ import {
 } from "@services/chatService";
 import { pageTransition } from "@lib/animations";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import { useUIStore } from "@store/uiStore";
 
 export default function Chat() {
   const [searchParams] = useSearchParams();
@@ -176,6 +177,24 @@ export default function Chat() {
       setIsTyping(true);
       setError(null);
 
+      const noticeId = `starting-notice-${tempId}`;
+      const startupTimer = setTimeout(() => {
+        if (!useUIStore.getState().hasBackendResponded) {
+          setOptimisticMessages((prev: ConversationMessage[]) => [
+            ...prev,
+            {
+              id: noticeId,
+              session_id: activeSessionId || "",
+              role: MessageRole.ASSISTANT,
+              content:
+                "⏳ Starting AI services...\n\nYour first response may take up to a minute.",
+              status: MessageStatus.SENT,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        }
+      }, 3500);
+
       try {
         const response = await chatMutation.mutateAsync({
           question: content,
@@ -188,8 +207,6 @@ export default function Chat() {
           intent: intent,
         });
 
-        // Log document IDs being sent
-
         // Update session ID if new conversation
         if (!activeSessionId && response.session_id) {
           setActiveSessionId(response.session_id);
@@ -197,18 +214,18 @@ export default function Chat() {
 
         // Remove optimistic message (server will have the real message)
         setOptimisticMessages((prev: ConversationMessage[]) =>
-          prev.filter((m: ConversationMessage) => m.id !== tempId),
+          prev.filter(
+            (m: ConversationMessage) => m.id !== tempId && m.id !== noticeId,
+          ),
         );
-
-        // Don't add assistant message to optimistic messages
-        // The conversation detail will be updated by the server with the real message
-        // This prevents duplication when the server response arrives
       } catch (e: unknown) {
         // Update optimistic message to FAILED status
         setOptimisticMessages((prev: ConversationMessage[]) =>
-          prev.map((m: ConversationMessage) =>
-            m.id === tempId ? { ...m, status: MessageStatus.FAILED } : m,
-          ),
+          prev
+            .filter((m: ConversationMessage) => m.id !== noticeId)
+            .map((m: ConversationMessage) =>
+              m.id === tempId ? { ...m, status: MessageStatus.FAILED } : m,
+            ),
         );
 
         const err = e as Error;
@@ -224,6 +241,7 @@ export default function Chat() {
           setError("Failed to send message. Please try again.");
         }
       } finally {
+        clearTimeout(startupTimer);
         setIsTyping(false);
       }
     },

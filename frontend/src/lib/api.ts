@@ -7,6 +7,7 @@ import axios, {
 } from "axios";
 import { API_CONFIG } from "./constants";
 import { useAuthStore } from "@store/authStore";
+import { useUIStore } from "@store/uiStore";
 
 class ApiClient {
   private client: AxiosInstance;
@@ -43,15 +44,13 @@ class ApiClient {
           config.headers["Content-Type"] = "application/json";
         }
 
-        // If request takes > 5 seconds, notify user of cold start
+        // If request takes > 1.5 seconds and backend hasn't responded yet, mark warming state in store
         config._coldStartTimer = setTimeout(() => {
-          import("sonner").then(({ toast }) => {
-            toast.info(
-              "Starting AI services... This usually takes less than a minute on the first request.",
-              { id: "backend-cold-start-toast", duration: 15000 },
-            );
-          });
-        }, 5000);
+          const store = useUIStore.getState();
+          if (!store.hasBackendResponded) {
+            store.setIsBackendWarming(true);
+          }
+        }, 1500);
 
         return config;
       },
@@ -72,9 +71,12 @@ class ApiClient {
         if (response.config._coldStartTimer) {
           clearTimeout(response.config._coldStartTimer);
         }
-        import("sonner").then(({ toast }) => {
-          toast.dismiss("backend-cold-start-toast");
-        });
+        // Mark backend as active and responded
+        const store = useUIStore.getState();
+        if (!store.hasBackendResponded || store.isBackendWarming) {
+          store.setHasBackendResponded(true);
+          store.setIsBackendWarming(false);
+        }
         return response;
       },
       (
@@ -87,9 +89,10 @@ class ApiClient {
         if (error.config?._coldStartTimer) {
           clearTimeout(error.config._coldStartTimer);
         }
-        import("sonner").then(({ toast }) => {
-          toast.dismiss("backend-cold-start-toast");
-        });
+        const store = useUIStore.getState();
+        if (store.isBackendWarming) {
+          store.setIsBackendWarming(false);
+        }
 
         if (error.response?.status === 401) {
           useAuthStore.getState().logout();

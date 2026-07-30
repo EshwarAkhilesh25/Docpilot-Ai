@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cardVariants } from "@lib/animations";
 import { getGreeting } from "@lib/helpers/greeting";
@@ -8,6 +8,7 @@ import { ROUTES } from "@lib/constants";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import chatbotLottie from "@/chatbot.lottie?url";
 import { apiClient } from "@lib/api";
+import { useUIStore } from "@store/uiStore";
 
 interface DashboardHeroProps {
   userName: string;
@@ -15,27 +16,39 @@ interface DashboardHeroProps {
 
 export function DashboardHero({ userName }: DashboardHeroProps) {
   const navigate = useNavigate();
-  const [isWarmingUp, setIsWarmingUp] = useState<boolean>(false);
+  const {
+    isBackendWarming,
+    hasBackendResponded,
+    setIsBackendWarming,
+    setHasBackendResponded,
+  } = useUIStore();
 
   useEffect(() => {
-    // Show warming status if backend check takes > 1.5s
+    if (hasBackendResponded) return;
+
+    // Trigger a fast health check on mount to test backend responsiveness
     const timer = setTimeout(() => {
-      setIsWarmingUp(true);
+      if (!hasBackendResponded) {
+        setIsBackendWarming(true);
+      }
     }, 1500);
 
     apiClient
       .get("/health")
       .then(() => {
         clearTimeout(timer);
-        setIsWarmingUp(false);
+        setHasBackendResponded(true);
+        setIsBackendWarming(false);
       })
       .catch(() => {
+        // Even if health fails initially (cold start), keep check timer clean
         clearTimeout(timer);
-        setIsWarmingUp(false);
       });
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [hasBackendResponded, setIsBackendWarming, setHasBackendResponded]);
+
+  const showStartupNotice = isBackendWarming && !hasBackendResponded;
 
   return (
     <motion.div
@@ -95,7 +108,7 @@ export function DashboardHero({ userName }: DashboardHeroProps) {
           </p>
 
           <AnimatePresence>
-            {isWarmingUp && (
+            {showStartupNotice && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -108,12 +121,12 @@ export function DashboardHero({ userName }: DashboardHeroProps) {
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-primary flex items-center gap-1.5 text-xs sm:text-sm">
-                      ☁️ Waking up AI services...
+                      🚀 AI services are starting...
                     </p>
                     <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
-                      The backend is starting on Render Free Tier. The first
-                      request may take 30–60 seconds. Thank you for your
-                      patience!
+                      The backend may take up to a minute to wake up on your
+                      first request. Feel free to import documents while it's
+                      starting.
                     </p>
                   </div>
                 </div>
