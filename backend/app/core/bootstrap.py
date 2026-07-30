@@ -197,12 +197,14 @@ class Bootstrap:
         )
 
         # Embedding provider factory
-        from app.embeddings.providers.sentence_transformer_provider import (
-            SentenceTransformerEmbeddingProvider,
+        # Production now uses HuggingFaceInferenceProvider (0MB local PyTorch RAM usage).
+        # SentenceTransformerEmbeddingProvider remains preserved for local offline reference.
+        from app.embeddings.providers.huggingface_inference_provider import (
+            HuggingFaceInferenceProvider,
         )
 
         self._provider_registry.register(
-            "embedding", lambda: SentenceTransformerEmbeddingProvider(settings.EMBEDDING_MODEL)
+            "embedding", lambda: HuggingFaceInferenceProvider(settings.EMBEDDING_MODEL)
         )
 
         # Vector index provider factory

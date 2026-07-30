@@ -8,8 +8,17 @@ import numpy as np
 class EmbeddingProvider(ABC):
     """Abstract interface for embedding generation.
 
-    This interface defines the contract for generating text embeddings.
-    Different implementations can use different models (SentenceTransformers, OpenAI, etc.).
+    This interface defines the foundational contract for generating text embeddings
+    across both Document Ingestion and Chat Pipeline retrieval.
+
+    Contract Specifications:
+    - Expected Dimension: 384 (for BAAI/bge-small-en-v1.5)
+    - Vector Normalization: L2 normalized vectors (length 1.0) required for FAISS Inner Product similarity search
+    - Output Format: numpy.ndarray with dtype float32
+
+    Future Migration Note:
+    Swapping provider implementations (e.g. from local PyTorch to Hugging Face Inference API)
+    will conform to this exact interface contract without requiring downstream code changes.
     """
 
     @abstractmethod

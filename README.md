@@ -156,6 +156,8 @@ The frontend will be available at http://localhost:3000
 - `REDIS_URL`: Redis connection string
 - `JWT_SECRET`: Secret key for JWT tokens
 - `GROQ_API_KEY`: Groq AI API key
+- `HUGGINGFACE_API_KEY`: Hugging Face API Token (for remote embedding inference)
+- `EMBEDDING_MODEL`: Embedding model identifier (default: BAAI/bge-small-en-v1.5)
 - `SUPABASE_URL`: Supabase project URL
 - `SUPABASE_KEY`: Supabase API key
 - `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)

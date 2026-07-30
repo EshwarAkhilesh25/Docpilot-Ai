@@ -117,16 +117,14 @@ class ChatResponseSchema(BaseModel):
 
 
 from app.api.dependencies import get_vector_index_provider
-from app.embeddings.providers.sentence_transformer_provider import (
-    SentenceTransformerEmbeddingProvider,
-)
+from app.embeddings.interfaces.embedding_provider import EmbeddingProvider
 from app.vectorstore.providers.faiss_provider import FAISSVectorProvider
 
 
 def get_chat_pipeline_service(
     llm_provider: LLMProvider = Depends(get_llm_provider),
     vector_index_provider: FAISSVectorProvider = Depends(get_vector_index_provider),
-    embedding_provider: SentenceTransformerEmbeddingProvider = Depends(get_embedding_provider),
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
 ) -> ChatPipelineService:
     """Dependency injection for chat pipeline service."""
     from app.chat.classification.rule_based_classifier import RuleBasedClassifier

@@ -7,9 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.chat.providers.groq_provider import GroqLLMProvider
 from app.db.session import get_db
 from app.db.unit_of_work import IUnitOfWork, SQLAlchemyUnitOfWork
-from app.embeddings.providers.sentence_transformer_provider import (
-    SentenceTransformerEmbeddingProvider,
-)
+from app.embeddings.interfaces.embedding_provider import EmbeddingProvider
 from app.ingestion.factory.processor_factory import ProcessorFactory
 from app.ingestion.pipeline.ingestion_pipeline import IngestionPipeline
 from app.ingestion.providers.whisper_transcription_provider import (
@@ -56,8 +54,11 @@ def get_llm_provider(request: Request) -> GroqLLMProvider:
     return provider
 
 
-def get_embedding_provider(request: Request) -> SentenceTransformerEmbeddingProvider:
-    """Dependency injection for embedding provider from bootstrap."""
+def get_embedding_provider(request: Request) -> EmbeddingProvider:
+    """Dependency injection for embedding provider from bootstrap application state.
+
+    Shared by API routes including Chat and Document ingestion endpoints.
+    """
     bootstrap = request.app.state.bootstrap
     provider = bootstrap.get_embedding_provider()
     if provider is None:
@@ -144,7 +145,7 @@ def get_job_dispatcher(request: Request) -> JobDispatcher:
 
 def get_retriever_service(
     vector_index: FAISSVectorProvider = Depends(get_vector_index_provider),
-    embedding_provider: SentenceTransformerEmbeddingProvider = Depends(get_embedding_provider),
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
     keyword_index: KeywordIndexProvider = Depends(get_keyword_index_provider),
 ) -> RetrieverService:
     """Dependency injection for RetrieverService."""

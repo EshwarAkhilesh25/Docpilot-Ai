@@ -1,4 +1,43 @@
-"""SentenceTransformers embedding provider implementation."""
+"""SentenceTransformers embedding provider implementation.
+
+Legacy Local Embedding Provider
+
+This provider generates embeddings using SentenceTransformer
+(BAAI/bge-small-en-v1.5) running locally with PyTorch.
+
+It has been retained for reference purposes.
+
+Reason for replacement:
+- Render Free Tier provides only 512 MB RAM.
+- PyTorch + SentenceTransformer consumes approximately
+  340–370 MB during inference.
+- Combined with FastAPI, SQLAlchemy, FAISS, and application
+  runtime, peak RSS exceeds Render's memory limit, causing
+  Linux OOM termination.
+
+Production deployments should instead use the
+Hugging Face Inference API provider to eliminate
+local PyTorch memory usage.
+
+Do not remove this implementation unless we intentionally
+drop support for local embeddings.
+
+Current Flow:
+Text -> SentenceTransformer.encode() -> 384-dimensional normalized vector -> FAISS Index
+
+Note: Both document ingestion and query retrieval rely on this provider.
+
+Planned Migration Architecture:
+Current:
+  SentenceTransformer -> PyTorch -> Local inference
+Future:
+  EmbeddingProvider -> Hugging Face Inference API -> HTTP request -> 384-dimensional embedding
+
+Key Architecture Notes:
+- The EmbeddingProvider interface remains unchanged.
+- Only the provider implementation will change.
+- Document ingestion and query embedding will continue to share the exact same abstraction.
+"""
 
 import asyncio
 import logging
@@ -16,7 +55,7 @@ settings = get_settings()
 
 
 class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
-    """Embedding provider using SentenceTransformers.
+    """Legacy Local Embedding Provider using SentenceTransformers.
 
     This provider uses BAAI/bge-small-en-v1.5 model for generating embeddings.
     The model is loaded lazily on demand and cached for reuse. Model loading
