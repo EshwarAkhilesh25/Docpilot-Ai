@@ -28,9 +28,19 @@ class WholeDocumentRetrievalStrategy(RetrievalStrategy):
         """Perform full document retrieval."""
 
         if not document_ids:
+            logger.warning(
+                "WholeDocumentRetrievalStrategy received empty document_ids — returning 0 chunks. "
+                "Ensure document_ids are resolved before invoking this strategy."
+            )
             return []
 
         max_chunks = kwargs.get("max_chunks", 100)  # Prevents blowing up context window
+
+        logger.info(
+            "WholeDocumentRetrievalStrategy retrieving chunks for %d document(s): %s",
+            len(document_ids),
+            [str(d) for d in document_ids],
+        )
 
         chunks = []
         async with uow:

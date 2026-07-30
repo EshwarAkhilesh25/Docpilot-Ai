@@ -69,7 +69,38 @@ class ChatPipelineService:
                 session = await uow.chat_session_repository.get_by_id(session_id)
                 if session:
                     # Existing conversation: enforce its document scope
-                    document_ids = session.document_ids or []
+                    document_ids = [
+                        UUID(d) if isinstance(d, str) else d for d in (session.document_ids or [])
+                    ]
+
+                # If document_ids is still empty, auto-resolve from the user's
+                # most recently completed documents.  This covers the common case
+                # where the user uploaded a document and immediately opened chat
+                # without the frontend including document_ids in the request.
+                #
+                # list_by_user() guarantees ORDER BY uploaded_at DESC, so the
+                # first element in the filtered list is always the most recently
+                # uploaded completed document — not just any completed document.
+                # This prevents binding the session to an older document (e.g.
+                # Resume.pdf) when the user just uploaded Project.pdf today.
+                if not document_ids:
+                    user_docs = await uow.document_repository.list_by_user(
+                        user_id, offset=0, limit=20
+                    )
+                    # Filter to completed-only to avoid partially indexed docs
+                    completed_docs = [
+                        d for d in user_docs if str(d.processing_status) == "completed"
+                    ]
+                    if completed_docs:
+                        # [0] is the most recently uploaded completed document
+                        # because list_by_user returns uploaded_at DESC.
+                        document_ids = [completed_docs[0].id]
+                        logger.info(
+                            "document_ids resolved automatically to most recently "
+                            "uploaded completed document: %s (uploaded_at=%s)",
+                            completed_docs[0].id,
+                            getattr(completed_docs[0], "uploaded_at", "unknown"),
+                        )
 
                 if document_ids:
                     num_docs = len(document_ids)
@@ -178,19 +209,22 @@ class ChatPipelineService:
             return {"answer": final_response, "sources": sources_data}
 
         except Exception as e:
-            import traceback
-
-            full_trace = traceback.format_exc()
-            logger.error(
-                f"[TRACE DEBUG] Chat Orchestrator Exception: {e}\nFull Traceback:\n{full_trace}"
-            )
+            logger.exception("Chat orchestration pipeline exception: %s", e)
 
             pipeline_log["status"] = "FAILED"
             pipeline_log["error"] = str(e)
 
-            # Don't throw 500 for LLM rate limits or other generation errors; return a fallback response
-            if "429" in str(e):
+            err_type = str(type(e))
+            err_str = str(e)
+
+            if "429" in err_str:
                 err_msg = "I'm currently experiencing high traffic and hit an API rate limit. Please try again in a few moments."
+            elif (
+                "VectorIndexNotFound" in err_type
+                or "Index has not been created" in err_str
+                or "VectorIndexNotFoundException" in err_type
+            ):
+                err_msg = "This document is still being processed or has not been indexed yet. Please wait a moment or upload the document again."
             else:
                 err_msg = (
                     "I encountered an error while trying to generate a response. Please try again."

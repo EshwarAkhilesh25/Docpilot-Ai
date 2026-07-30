@@ -38,21 +38,11 @@ class EmbeddingService:
             DocumentProcessingException: If embedding generation fails.
         """
         try:
-            logger.info(
-                f"[TRACE DEBUG] EmbeddingService.generate_embeddings() called for {len(texts)} texts"
-            )
+            logger.info(f"Generating embeddings for {len(texts)} text item(s)")
             embeddings = await self._embedding_provider.generate_embeddings(texts)
-
-            if embeddings and len(embeddings) > 0:
-                shapes = [str(e.shape) if hasattr(e, "shape") else "Unknown" for e in embeddings]
-                logger.info(
-                    f"[TRACE DEBUG] EmbeddingService returned {len(embeddings)} valid vector(s). Shape(s): {shapes}"
-                )
-            else:
-                logger.warning("[TRACE DEBUG] EmbeddingService returned empty embeddings list!")
-
+            logger.info(f"Generated {len(embeddings)} embedding vector(s)")
             return embeddings
 
         except Exception as e:
-            logger.exception(f"[TRACE DEBUG] EmbeddingService exception occurred: {e}")
+            logger.exception("Embedding generation failed: %s", e)
             raise DocumentProcessingException(f"Embedding generation failed: {e}")

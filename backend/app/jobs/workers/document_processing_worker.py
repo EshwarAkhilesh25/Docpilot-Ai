@@ -100,6 +100,7 @@ class DocumentProcessingWorker:
             await self._processing_service.generate_ingestion_report(document_id, job.id)
 
         except Exception as e:
+            logger.exception("Document processing failed for document_id %s: %s", document_id, e)
             # Increment retry and mark as FAILED
             if job:
                 uow = self._uow_factory()

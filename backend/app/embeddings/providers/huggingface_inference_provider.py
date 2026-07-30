@@ -4,7 +4,6 @@ import asyncio
 import logging
 import os
 import random
-import traceback
 from typing import Any
 
 import httpx
@@ -39,65 +38,53 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
     MAX_RETRIES = 3
     INITIAL_RETRY_DELAY = 1.5
 
-    def __init__(self, model_name: str | None = None, api_key: str | None = None):
-        """Initialize the Hugging Face Inference API embedding provider.
+    INITIAL_RETRY_DELAY = 1.0  # seconds
 
-        Args:
-            model_name: Hugging Face model identifier (defaults to BAAI/bge-small-en-v1.5).
-            api_key: Optional Hugging Face API token (HF_TOKEN or HUGGINGFACE_API_KEY).
-        """
-        self._model_name = model_name or getattr(settings, "EMBEDDING_MODEL", self.DEFAULT_MODEL)
+    def __init__(
+        self,
+        model_name: str = "BAAI/bge-small-en-v1.5",
+        api_key: str | None = None,
+        timeout: float = 30.0,
+    ):
+        """Initialize Hugging Face Inference API provider."""
+        self._model_name = model_name or settings.EMBEDDING_MODEL
         self._api_key = (
             api_key
-            or getattr(settings, "HUGGINGFACE_API_KEY", None)
             or os.getenv("HUGGINGFACE_API_KEY")
-            or os.getenv("HF_TOKEN")
-            or ""
+            or getattr(settings, "HUGGINGFACE_API_KEY", "")
         )
-        self._dimension = self.EXPECTED_DIMENSION
-        self._timeout = float(getattr(settings, "HF_TIMEOUT", 30.0))
+        self._timeout = timeout
+        self._dimension = 384
 
     def _get_headers(self) -> dict[str, str]:
+        """Build request headers with optional Bearer token authentication."""
         headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
+        if self._api_key and self._api_key.strip():
+            headers["Authorization"] = f"Bearer {self._api_key.strip()}"
         return headers
 
     def _normalize(self, vector: np.ndarray) -> np.ndarray:
-        """L2-normalize vector to unit length for FAISS compatibility."""
-        vector = vector.astype(np.float32)
+        """L2 normalize a 1D vector so dot product equals cosine similarity."""
         norm = np.linalg.norm(vector)
-        if norm > 0:
-            vector = vector / norm
-        return vector
+        if norm == 0:
+            return vector
+        return vector / norm
 
-    def _process_response_data(self, raw_data: Any, expected_count: int) -> list[np.ndarray]:
-        """Convert raw response data (OpenAI-compatible or feature extraction format) into normalized numpy arrays."""
-        # 1. OpenAI-style Embeddings Format: {"data": [{"embedding": [...]}, ...]}
-        if isinstance(raw_data, dict) and "data" in raw_data and isinstance(raw_data["data"], list):
-            results = []
-            for item in raw_data["data"]:
-                vec = np.array(item["embedding"], dtype=np.float32)
-                results.append(self._normalize(vec))
-            return results
+    def _process_response_data(self, data: Any, expected_count: int) -> list[np.ndarray]:
+        """Parse raw API JSON response into L2-normalized 1D float32 NumPy arrays."""
+        if not data:
+            raise EmbeddingGenerationException(
+                "Empty response data received from Hugging Face Inference API"
+            )
 
-        # 2. Feature Extraction Array Format
-        arr = np.array(raw_data, dtype=np.float32)
+        arr = np.array(data, dtype=np.float32)
 
-        # Single vector (1D)
-        if arr.ndim == 1 and arr.shape[0] == self._dimension:
+        if arr.ndim == 1 and arr.shape[0] == self._dimension and expected_count == 1:
             return [self._normalize(arr)]
 
-        # Single token matrix (2D) -> Mean pooling
-        if arr.ndim == 2 and arr.shape[0] != expected_count and arr.shape[1] == self._dimension:
-            pooled = np.mean(arr, axis=0)
-            return [self._normalize(pooled)]
-
-        # Batch vectors (2D)
         if arr.ndim == 2 and arr.shape[1] == self._dimension:
-            return [self._normalize(vec) for vec in arr]
+            return [self._normalize(row) for row in arr]
 
-        # Batch token matrices (3D)
         if arr.ndim == 3 and arr.shape[2] == self._dimension:
             return [self._normalize(np.mean(item, axis=0)) for item in arr]
 
@@ -117,10 +104,6 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
             f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self._model_name}",
         ]
 
-        logger.info(
-            f"[RUNTIME INSTRUMENTATION] File Path: {os.path.abspath(__file__)} | Provider Object ID: {id(self)} | First Endpoint: {endpoints[0]}"
-        )
-
         last_exception: Exception | None = None
 
         for endpoint in endpoints:
@@ -132,15 +115,11 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
 
             for attempt in range(1, self.MAX_RETRIES + 1):
                 try:
-                    logger.info(
-                        f"[TRACE DEBUG] Executing HF API request ({request_type}) | Attempt {attempt}/{self.MAX_RETRIES} | Endpoint: {endpoint}"
+                    logger.debug(
+                        f"Executing HF API request attempt {attempt}/{self.MAX_RETRIES} to endpoint: {endpoint}"
                     )
                     response = await client.post(
                         endpoint, headers=headers, json=request_body, timeout=self._timeout
-                    )
-
-                    logger.info(
-                        f"[TRACE DEBUG] HF API Response ({request_type}) | Endpoint: {endpoint} | Status: {response.status_code} | Body: {response.text[:500]}"
                     )
 
                     # Success (200 OK)
@@ -181,9 +160,9 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
                         await asyncio.sleep(delay)
                         continue
 
-                    # For 4xx errors other than 429, log full body and fallback to next endpoint
+                    # For 4xx errors other than 429, log error and attempt fallback endpoint
                     logger.error(
-                        f"[TRACE DEBUG] HuggingFace API client error ({request_type}) | Endpoint: {endpoint} | HTTP {response.status_code} | Full Body: {response.text}"
+                        f"HuggingFace API client error HTTP {response.status_code} from endpoint {endpoint}"
                     )
                     break
 
@@ -203,10 +182,6 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
 
     async def generate_embedding(self, text: str) -> np.ndarray:
         """Generate an embedding for a single text via Hugging Face Inference API."""
-        stack_str = "".join(traceback.format_stack()[:-1])
-        logger.info(
-            f"[RUNTIME INSTRUMENTATION] generate_embedding() CALLED | File Path: {os.path.abspath(__file__)} | Object ID: {id(self)}\nCaller Stack Trace:\n{stack_str}"
-        )
         if not text or not text.strip():
             raise EmbeddingGenerationException("Cannot generate embedding for empty text")
 
@@ -220,9 +195,7 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
 
     async def generate_embeddings(self, texts: list[str]) -> list[np.ndarray]:
         """Generate embeddings for multiple texts in batch via Hugging Face Inference API."""
-        logger.info(
-            f"[TRACE DEBUG] generate_embeddings() CALLED for document ingestion batch ({len(texts)} texts)"
-        )
+        logger.debug(f"Generating embeddings for batch of {len(texts)} text(s)")
         if not texts:
             return []
 
