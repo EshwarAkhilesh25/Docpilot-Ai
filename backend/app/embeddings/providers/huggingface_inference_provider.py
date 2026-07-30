@@ -105,7 +105,10 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
         )
 
     async def _post_with_resilience(
-        self, client: httpx.AsyncClient, payload: dict[str, Any], request_type: str = "query_embedding"
+        self,
+        client: httpx.AsyncClient,
+        payload: dict[str, Any],
+        request_type: str = "query_embedding",
     ) -> Any:
         """Execute HTTP POST with retries, exponential backoff, 429 rate limit handling, and 503 warmup retries."""
         endpoints = [
@@ -230,9 +233,7 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
                 raw_data = await self._post_with_resilience(
                     client, payload, request_type="document_ingestion_batch"
                 )
-                vectors = self._process_response_data(
-                    raw_data, expected_count=len(batch_chunk)
-                )
+                vectors = self._process_response_data(raw_data, expected_count=len(batch_chunk))
                 all_embeddings.extend(vectors)
 
         # Map back to original list positions
