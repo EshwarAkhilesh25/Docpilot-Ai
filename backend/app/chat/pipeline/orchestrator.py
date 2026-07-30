@@ -178,6 +178,13 @@ class ChatPipelineService:
             return {"answer": final_response, "sources": sources_data}
 
         except Exception as e:
+            import traceback
+
+            full_trace = traceback.format_exc()
+            logger.error(
+                f"[TRACE DEBUG] Chat Orchestrator Exception: {e}\nFull Traceback:\n{full_trace}"
+            )
+
             pipeline_log["status"] = "FAILED"
             pipeline_log["error"] = str(e)
 

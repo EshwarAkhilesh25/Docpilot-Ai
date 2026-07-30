@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+import traceback
 from typing import Any
 
 import httpx
@@ -116,6 +117,10 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
             f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self._model_name}",
         ]
 
+        logger.info(
+            f"[RUNTIME INSTRUMENTATION] File Path: {os.path.abspath(__file__)} | Provider Object ID: {id(self)} | First Endpoint: {endpoints[0]}"
+        )
+
         last_exception: Exception | None = None
 
         for endpoint in endpoints:
@@ -198,7 +203,10 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
 
     async def generate_embedding(self, text: str) -> np.ndarray:
         """Generate an embedding for a single text via Hugging Face Inference API."""
-        logger.info("[TRACE DEBUG] generate_embedding() CALLED for single query embedding")
+        stack_str = "".join(traceback.format_stack()[:-1])
+        logger.info(
+            f"[RUNTIME INSTRUMENTATION] generate_embedding() CALLED | File Path: {os.path.abspath(__file__)} | Object ID: {id(self)}\nCaller Stack Trace:\n{stack_str}"
+        )
         if not text or not text.strip():
             raise EmbeddingGenerationException("Cannot generate embedding for empty text")
 
