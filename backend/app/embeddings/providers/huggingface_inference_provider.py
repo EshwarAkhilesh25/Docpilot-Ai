@@ -105,40 +105,34 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
         )
 
     async def _post_with_resilience(
-        self, client: httpx.AsyncClient, payload: dict[str, Any]
+        self, client: httpx.AsyncClient, payload: dict[str, Any], request_type: str = "query_embedding"
     ) -> Any:
         """Execute HTTP POST with retries, exponential backoff, 429 rate limit handling, and 503 warmup retries."""
-        # Try modern Hugging Face router API first, fallback to feature extraction endpoint
         endpoints = [
+            f"https://router.huggingface.co/hf-inference/models/{self._model_name}/pipeline/feature-extraction",
             f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self._model_name}",
-            f"https://api-inference.huggingface.co/models/{self._model_name}",
-            "https://router.huggingface.co/hf-inference/v1/embeddings",
         ]
 
         last_exception: Exception | None = None
 
         for endpoint in endpoints:
             headers = self._get_headers()
-
-            # Adapt payload format for endpoint type
-            if "router.huggingface.co" in endpoint:
-                request_body = {
-                    "model": self._model_name,
-                    "input": payload["inputs"],
-                }
-            else:
-                request_body = {
-                    "inputs": payload["inputs"],
-                    "options": {"wait_for_model": True},
-                }
+            request_body = {
+                "inputs": payload["inputs"],
+                "options": {"wait_for_model": True},
+            }
 
             for attempt in range(1, self.MAX_RETRIES + 1):
                 try:
-                    logger.debug(
-                        f"HF API request attempt {attempt}/{self.MAX_RETRIES} to {endpoint}"
+                    logger.info(
+                        f"[TRACE DEBUG] Executing HF API request ({request_type}) | Attempt {attempt}/{self.MAX_RETRIES} | Endpoint: {endpoint}"
                     )
                     response = await client.post(
                         endpoint, headers=headers, json=request_body, timeout=self._timeout
+                    )
+
+                    logger.info(
+                        f"[TRACE DEBUG] HF API Response ({request_type}) | Endpoint: {endpoint} | Status: {response.status_code} | Body: {response.text[:500]}"
                     )
 
                     # Success (200 OK)
@@ -179,9 +173,9 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
                         await asyncio.sleep(delay)
                         continue
 
-                    # For 4xx errors other than 429, don't retry same endpoint
+                    # For 4xx errors other than 429, log full body and fallback to next endpoint
                     logger.error(
-                        f"HuggingFace API client error HTTP {response.status_code}: {response.text}"
+                        f"[TRACE DEBUG] HuggingFace API client error ({request_type}) | Endpoint: {endpoint} | HTTP {response.status_code} | Full Body: {response.text}"
                     )
                     break
 
@@ -201,42 +195,52 @@ class HuggingFaceInferenceProvider(EmbeddingProvider):
 
     async def generate_embedding(self, text: str) -> np.ndarray:
         """Generate an embedding for a single text via Hugging Face Inference API."""
+        logger.info("[TRACE DEBUG] generate_embedding() CALLED for single query embedding")
         if not text or not text.strip():
             raise EmbeddingGenerationException("Cannot generate embedding for empty text")
 
         payload = {"inputs": text}
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            raw_data = await self._post_with_resilience(client, payload)
+            raw_data = await self._post_with_resilience(
+                client, payload, request_type="query_embedding"
+            )
             vectors = self._process_response_data(raw_data, expected_count=1)
             return vectors[0]
 
     async def generate_embeddings(self, texts: list[str]) -> list[np.ndarray]:
-        """Generate embeddings for multiple texts in batch via Hugging Face Inference API.
-
-        Performs single HTTP POST request per batch (chunking into sub-batches of MAX_BATCH_SIZE).
-        """
+        """Generate embeddings for multiple texts in batch via Hugging Face Inference API."""
+        logger.info(
+            f"[TRACE DEBUG] generate_embeddings() CALLED for document ingestion batch ({len(texts)} texts)"
+        )
         if not texts:
             return []
 
-        valid_texts = [t for t in texts if t and t.strip()]
-        if not valid_texts:
-            return []
+        # Filter out empty/whitespace strings
+        valid_indices_and_texts = [(i, t) for i, t in enumerate(texts) if t and t.strip()]
+        if not valid_indices_and_texts:
+            return [np.zeros(self._dimension, dtype=np.float32) for _ in texts]
 
-        # Partition into sub-batches of max size (e.g. 32)
-        batches = [
-            valid_texts[i : i + self.MAX_BATCH_SIZE]
-            for i in range(0, len(valid_texts), self.MAX_BATCH_SIZE)
-        ]
+        valid_texts = [t for _, t in valid_indices_and_texts]
+        all_embeddings: list[np.ndarray] = []
 
-        all_vectors: list[np.ndarray] = []
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            for batch in batches:
-                payload = {"inputs": batch}
-                raw_data = await self._post_with_resilience(client, payload)
-                vectors = self._process_response_data(raw_data, expected_count=len(batch))
-                all_vectors.extend(vectors)
+            for i in range(0, len(valid_texts), self.MAX_BATCH_SIZE):
+                batch_chunk = valid_texts[i : i + self.MAX_BATCH_SIZE]
+                payload = {"inputs": batch_chunk}
+                raw_data = await self._post_with_resilience(
+                    client, payload, request_type="document_ingestion_batch"
+                )
+                vectors = self._process_response_data(
+                    raw_data, expected_count=len(batch_chunk)
+                )
+                all_embeddings.extend(vectors)
 
-        return all_vectors
+        # Map back to original list positions
+        result = [np.zeros(self._dimension, dtype=np.float32) for _ in texts]
+        for (orig_idx, _), vec in zip(valid_indices_and_texts, all_embeddings, strict=False):
+            result[orig_idx] = vec
+
+        return result
 
     def dimension(self) -> int:
         """Get vector dimension (384 for BAAI/bge-small-en-v1.5)."""
