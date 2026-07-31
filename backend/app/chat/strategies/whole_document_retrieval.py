@@ -46,10 +46,19 @@ class WholeDocumentRetrievalStrategy(RetrievalStrategy):
         async with uow:
             for doc_id in document_ids:
                 doc_chunks = await uow.document_chunk_repository.list_by_document(doc_id)
+                logger.info(
+                    "list_by_document(%s) returned %d chunk(s)",
+                    str(doc_id),
+                    len(doc_chunks),
+                )
 
                 # Sort chronologically by chunk index
                 doc_chunks.sort(key=lambda c: getattr(c, "chunk_index", 0))
                 chunks.extend(doc_chunks)
 
-        # Limit chunks if document is too large
-        return chunks[:max_chunks]
+        final_chunks = chunks[:max_chunks]
+        logger.info(
+            "WholeDocumentRetrievalStrategy returning %d total chunk(s)",
+            len(final_chunks),
+        )
+        return final_chunks
